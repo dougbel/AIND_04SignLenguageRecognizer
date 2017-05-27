@@ -29,7 +29,8 @@ class ModelSelector(object):
         self.verbose = verbose
 
     def select(self):
-        raise NotImplementedError
+        for numComponents in range(self.min_n_components, self.max_n_components + 1):
+            print(numComponents)
 
     def base_model(self, num_states):
         # with warnings.catch_warnings():
@@ -76,7 +77,7 @@ class SelectorBIC(ModelSelector):
         """
         warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-        # TODO implement model selection based on BIC scores
+        # TODO implement model selecti BICon based on scores
         raise NotImplementedError
 
 
@@ -102,7 +103,55 @@ class SelectorCV(ModelSelector):
     '''
 
     def select(self):
-        warnings.filterwarnings("ignore", category=DeprecationWarning)
+        maxScore = -math.inf
+        maxModel = None
 
-        # TODO implement model selection using CV
-        raise NotImplementedError
+        for numComponents in range(self.min_n_components, self.max_n_components + 1):
+            try:
+                if self.verbose:
+                    print("\n\n     WORKING FOR WORD {} PARA {} ESTADOS EN HMM".format(self.this_word, numComponents))
+                    print("                      {} WITH {} SEQUENCES, NUMBER OF FOLDS CHOOSEN {}".format(self.this_word, len(self.sequences),min(3, len(self.sequences))))
+
+                split_method = KFold(n_splits=min(3, len(self.sequences)))
+                #restarting collection of scores
+                scores = []
+                numFold= 0
+
+                # splitting in training and test sets
+                for cv_train_idx, cv_test_idx in split_method.split(self.sequences):
+                    numFold += 1
+                    if self.verbose:
+                        print("     Fold number {} ".format(numFold))
+                    #### TRAINING ####
+                    # get fold for training
+                    self.X, self.lengths = combine_sequences(cv_train_idx, self.sequences)
+                    # train
+                    model = self.base_model(numComponents)
+                    ### restoring X and lenghts after training
+                    self.X, self.lengths = self.hwords[self.this_word]
+
+                    #### SCORING ####
+                    # get fold for testing
+                    __x, __length = combine_sequences(cv_test_idx, self.sequences)
+                    # score
+                    logl = model.score(__x, __length)
+                    scores.append(logl)
+                    if self.verbose:
+                        print("           score {} ".format(logl))
+                #getting mean of scores and model
+                score, model = np.mean(scores), model
+                if self.verbose:
+                    print("     Average score {} ".format(logl))
+
+
+                if score > maxScore:
+                    maxScore = score
+                    maxModel = model
+                    if self.verbose:
+                        print("     {} components with bigger score until now".format(numComponents))
+            except:
+                if self.verbose:
+                    print("                      FAIL TRAINING FOR {} COMPONENTS IN HMM".format(numComponents))
+                break
+        return maxModel
+
