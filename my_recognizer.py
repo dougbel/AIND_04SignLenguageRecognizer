@@ -1,4 +1,5 @@
 import warnings
+import math
 from asl_data import SinglesData
 
 
@@ -21,5 +22,24 @@ def recognize(models: dict, test_set: SinglesData):
     probabilities = []
     guesses = []
     # TODO implement the recognizer
-    # return probabilities, guesses
-    raise NotImplementedError
+    for test_item in range(0, test_set.num_items) :
+        dictionary = {}
+        for word, model in models.items():
+            # calculate the scores for each model(word) and update the 'probabilities' list.
+            __X, __length  = test_set.get_item_Xlengths(test_item)
+
+
+            try:
+                logl = model.score(__X, __length)
+            except:
+                logl = -math.inf
+            dictionary[word] = logl
+
+        probabilities.append(dictionary)
+        # determine the maximum score for each model (word).
+        maxloglword = max(dictionary, key=dictionary.get)
+        guesses.append(maxloglword)
+
+
+    return probabilities, guesses
+
