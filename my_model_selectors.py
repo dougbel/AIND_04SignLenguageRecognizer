@@ -1,9 +1,11 @@
 import math
 import statistics
 import warnings
+from _threading_local import local
 
 import numpy as np
 from hmmlearn.hmm import GaussianHMM
+from numpy.testing.tests.test_utils import my_cacw
 from sklearn.model_selection import KFold
 from asl_utils import combine_sequences
 
@@ -76,9 +78,36 @@ class SelectorBIC(ModelSelector):
         :return: GaussianHMM object
         """
         warnings.filterwarnings("ignore", category=DeprecationWarning)
+        betterScore = math.inf
+        betterModel = None
+        for numComponents in range(self.min_n_components, self.max_n_components + 1):
+            try:
+                if self.verbose:
+                    print("\n\n     WORKING FOR WORD {} FOR {} STATES EN HMM".format(self.this_word, numComponents))
+                model = self.base_model(numComponents)
+                logl = model.score(self.X, self.lengths)
+                # the number of parameters, I write here the number of elements in the transition probabilities (math array)
+                p=numComponents*(numComponents-1)
+                # the number of data points, here I chose the average of data by word
+                N= len(self.X)/len(self.lengths)
 
-        # TODO implement model selecti BICon based on scores
-        raise NotImplementedError
+                # the BIC score
+                BIC_score = -2*logl + (p*math.log(N))
+                if self.verbose:
+                    print("     score {} ".format(BIC_score))
+
+                if BIC_score < betterScore:
+                    if self.verbose:
+                        print("     {} components with lower score until now (the lower the better)".format(numComponents))
+                    betterScore = BIC_score
+                    betterModel = model
+
+            except:
+                if self.verbose:
+                    print("                      FAIL TRAINING FOR {} COMPONENTS IN HMM".format(numComponents))
+                break
+        return betterModel
+
 
 
 class SelectorDIC(ModelSelector):
@@ -92,9 +121,44 @@ class SelectorDIC(ModelSelector):
 
     def select(self):
         warnings.filterwarnings("ignore", category=DeprecationWarning)
+        betterScore = -math.inf
+        betterModel = None
 
-        # TODO implement model selection based on DIC scores
-        raise NotImplementedError
+
+        for numComponents in range(self.min_n_components, self.max_n_components + 1):
+            try:
+                if self.verbose:
+                    print("\n\n     WORKING FOR WORD {} FOR {} STATES EN HMM".format(self.this_word, numComponents))
+                model = self.base_model(numComponents)
+                logl = model.score(self.X, self.lengths)
+
+                scores = []
+                for __wrd in self.words.keys():
+                    if(__wrd != self.this_word):
+                        try:
+                            __X, __lengths = self.hwords[__wrd]
+                            logl = model.score(__X, __lengths)
+                            scores.append(logl)
+                        except:
+                            continue
+
+
+                # calculating DIC score
+                DIC_score = logl -  np.mean(scores)
+                if self.verbose:
+                    print("     score {} ".format(DIC_score))
+
+                if DIC_score > betterScore:
+                    if self.verbose:
+                        print("     {} components with bigger score until now (the bigger the better)".format(numComponents))
+                    betterScore = DIC_score
+                    betterModel = model
+
+            except:
+                if self.verbose:
+                    print("                      FAIL TRAINING FOR {} COMPONENTS IN HMM".format(numComponents))
+                break
+        return betterModel
 
 
 class SelectorCV(ModelSelector):
@@ -109,7 +173,7 @@ class SelectorCV(ModelSelector):
         for numComponents in range(self.min_n_components, self.max_n_components + 1):
             try:
                 if self.verbose:
-                    print("\n\n     WORKING FOR WORD {} PARA {} ESTADOS EN HMM".format(self.this_word, numComponents))
+                    print("\n\n     WORKING FOR WORD {} FOR {} STATES EN HMM".format(self.this_word, numComponents))
                     print("                      {} WITH {} SEQUENCES, NUMBER OF FOLDS CHOOSEN {}".format(self.this_word, len(self.sequences),min(3, len(self.sequences))))
 
                 split_method = KFold(n_splits=min(3, len(self.sequences)))
@@ -148,7 +212,7 @@ class SelectorCV(ModelSelector):
                     maxScore = score
                     maxModel = model
                     if self.verbose:
-                        print("     {} components with bigger score until now".format(numComponents))
+                        print("     {} components with bigger score until now (the bigger the better)".format(numComponents))
             except:
                 if self.verbose:
                     print("                      FAIL TRAINING FOR {} COMPONENTS IN HMM".format(numComponents))
