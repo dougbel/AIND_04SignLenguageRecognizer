@@ -86,10 +86,14 @@ class SelectorBIC(ModelSelector):
                     print("\n\n     WORKING FOR WORD {} FOR {} STATES EN HMM".format(self.this_word, numComponents))
                 model = self.base_model(numComponents)
                 logl = model.score(self.X, self.lengths)
-                # the number of parameters, I write here the number of elements in the transition probabilities (math array)
-                p=numComponents*(numComponents-1)
+                # the number of parameters
+                # Transition probabilities (numComponents*(numComponents-1)) +
+                #     Starting probabilities (numComponents-1) +
+                #      Means (numComponents*n_features) + Variances (numComponents*n_features)
+                n_features = len(self.X[0])
+                p = (numComponents*numComponents) + (2*numComponents*n_features) - 1
                 # the number of data points, here I chose the average of data by word
-                N= len(self.X)/len(self.lengths)
+                N=len(self.lengths)
 
                 # the BIC score
                 BIC_score = -2*logl + (p*math.log(N))
